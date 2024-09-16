@@ -6,11 +6,53 @@ on:
       - main
 
 jobs:
-  hello_world_job:
+  generate:
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        include:
+          - platform_suffix: amd64
+          - platform_suffix: arm64
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Print Hello World
-        run: echo "Hello, World!"
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="helloworld${{ matrix.platform_suffix }}"
+          touch "/tmp/digests/${digest#sha256:}"
+          ls /tmp/digests
+      - name: Upload digest v3
+        uses: actions/upload-artifact@v3
+        with:
+          name: digest3
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1    
+      - name: Upload digest v4
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: digest4-${{ matrix.platform_suffix }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1     
+
+  merge:
+    runs-on: ubuntu-latest
+    needs: [generate]
+    steps:
+      - name: Download digests 3
+        uses: actions/download-artifact@v3
+        with:
+          name: digest3
+          path: /tmp/digests3
+      - name: Download digests 4
+        uses: actions/download-artifact@v4.1.8
+        with:
+          pattern: digest4-*
+          path: /tmp/digests4
+          merge-multiple: true
+      - name: Show
+        run: |
+          ls /tmp/digests3
+          ls /tmp/digests4
